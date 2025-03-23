@@ -1,0 +1,184 @@
+/* Animation Keyframes */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Animation Classes */
+.fade-in {
+    animation: fadeIn 0.5s ease forwards;
+}
+
+.slide-up {
+    animation: slideUp 0.5s ease forwards;
+}
+
+.slide-down {
+    animation: slideDown 0.5s ease forwards;
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+/* Specific Animations for Elements */
+
+/* Tab Transition */
+.tab-content {
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+.tab-content.active {
+    animation: slideUp 0.3s ease forwards;
+}
+
+/* Problem Animation */
+#problem-content {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+#problem-content.fade-in {
+    animation: fadeIn 0.5s ease forwards, slideUp 0.5s ease forwards;
+}
+
+/* Complexity Visualizer Animations */
+.o1-animation .graph-line {
+    height: 10px;
+    transition: height 1s ease;
+}
+
+.ologn-animation .graph-line {
+    height: 30%;
+    transition: height 1s ease;
+    border-radius: 0 0 100% 0;
+}
+
+.on-animation .graph-line {
+    height: 60%;
+    transition: height 1s ease;
+    transform-origin: bottom left;
+    transform: skewY(-45deg);
+}
+
+.onlogn-animation .graph-line {
+    height: 70%;
+    transition: height 1s ease;
+    border-radius: 0 0 0 0;
+}
+
+.on2-animation .graph-line {
+    height: 100%;
+    transition: height 1s ease;
+    border-radius: 0 0 200% 0;
+}
+
+.exponential-animation .graph-line {
+    height: 100%;
+    transition: height 1s ease;
+    border-radius: 0 0 0 200%;
+}
+
+/* Leaderboard Animations */
+.stat-card {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+.stat-card.fade-in {
+    animation: fadeIn 0.3s ease forwards, slideUp 0.3s ease forwards;
+    animation-delay: calc(var(--animation-order) * 0.1s);
+}
+
+.heatmap-day {
+    opacity: 0;
+    transform: scale(0.8);
+}
+
+.heatmap-day.fade-in {
+    animation: fadeIn 0.2s ease forwards;
+    animation-delay: calc(var(--animation-order) * 0.01s);
+}
+
+/* Debug Helper Animations */
+.issue-item {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+.issue-item.fade-in {
+    animation: fadeIn 0.3s ease forwards, slideUp 0.3s ease forwards;
+    animation-delay: calc(var(--animation-order) * 0.1s);
+}
+
+/* Button Hover Effects */
+.btn:active {
+    transform: translateY(1px);
+}
+
+.nav-tab {
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-tab::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background-color: var(--primary-color);
+    transition: all 0.3s ease;
+}
+
+.nav-tab:hover::after,
+.nav-tab.active::after {
+    width: 100%;
+    left: 0;
+}
