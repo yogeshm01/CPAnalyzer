@@ -1,11 +1,7 @@
-/**
- * CP Assistant - Complexity Visualizer Module
- * Analyzes code to estimate its time complexity using regex patterns
- */
 
-/**
- * Initialize the Complexity Visualizer component
- */
+
+
+// Initialize the Complexity Visualizer component
 function initComplexityVisualizer() {
     const analyzeButton = document.getElementById('analyze-complexity');
     const languageSelect = document.getElementById('complexity-language');
@@ -24,9 +20,7 @@ function initComplexityVisualizer() {
     }
 }
 
-/**
- * Update the code textarea placeholder based on the selected language
- */
+// Update the code textarea placeholder based on the selected language
 function updateCodePlaceholder() {
     const languageSelect = document.getElementById('complexity-language');
     const codeInput = document.getElementById('complexity-code');
@@ -95,12 +89,6 @@ function analyzeComplexity() {
     }, 800);
 }
 
-/**
- * Determine the time complexity of the code
- * @param {string} code - The code to analyze
- * @param {string} language - The programming language of the code
- * @returns {Object} The complexity result object
- */
 function determineComplexity(code, language = 'javascript') {
     // Default to unknown complexity
     let complexity = {

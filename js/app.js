@@ -1,8 +1,3 @@
-/**
- * CP Assistant - Main Application Script
- * Handles tab navigation and initializes all components
- */
-
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize the tab system
     initTabs();
@@ -14,9 +9,9 @@ document.addEventListener('DOMContentLoaded', function() {
     initDebugHelper();
 });
 
-/**
- * Initialize the tab navigation system
- */
+
+// Initialize the tab navigation system
+
 function initTabs() {
     const tabs = document.querySelectorAll('.nav-tab');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -47,12 +42,7 @@ function initTabs() {
     }
 }
 
-/**
- * Shows a notification message
- * @param {string} message - The message to display
- * @param {string} type - The type of notification (success, error, info)
- * @param {number} duration - How long to show the notification in ms
- */
+
 function showNotification(message, type = 'info', duration = 3000) {
     // Check if notification container exists, if not create it
     let notificationContainer = document.querySelector('.notification-container');
