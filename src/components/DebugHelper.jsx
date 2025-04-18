@@ -1,5 +1,5 @@
 "use client"
-
+// require('dotenv').config();
 import { useState } from "react"
 
 const DebugHelper = () => {
@@ -8,6 +8,7 @@ const DebugHelper = () => {
   const [loading, setLoading] = useState(false)
   const [issues, setIssues] = useState([])
   const [analyzed, setAnalyzed] = useState(false)
+  const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
 
   const languagePlaceholders = {
     javascript: `// Paste your code here to find common errors
@@ -38,7 +39,7 @@ void example() {
 }`,
   }
 
-  const analyzeCode = () => {
+  const analyzeCode = async () => {
     if (!code.trim()) {
       alert("Please enter some code to analyze.")
       return
@@ -46,340 +47,87 @@ void example() {
 
     setLoading(true)
     setAnalyzed(false)
+    setIssues([])
 
-    // Simulate analysis delay
-    setTimeout(() => {
-      const detectedIssues = analyzeCodeForIssues(code, language)
-      setIssues(detectedIssues)
+    try {
+      const prompt = `Please analyze the following code written in ${language} for common errors, potential issues, and suggest improvements. Point out specific line numbers if possible:\n\n${code}`
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 500,
+              temperature: 0.4,
+            },
+          }),
+        }
+      )
+
+      const data = await response.json()
+      console.log("Gemini Debugging Response:", data)
+
+      if (data && data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) {
+        const analysisResult = data.candidates[0].content.parts[0].text.trim().split("\n")
+        const detectedIssues = parseGeminiOutput(analysisResult)
+        setIssues(detectedIssues)
+        setAnalyzed(true)
+      } else {
+        setIssues([{ type: "error", message: "Could not parse debugging analysis" }])
+        setAnalyzed(true)
+      }
+    } catch (error) {
+      console.error("Error analyzing code:", error)
+      setIssues([{ type: "error", message: "Failed to analyze code" }])
       setAnalyzed(true)
+    } finally {
       setLoading(false)
-    }, 800)
+    }
   }
 
-  const analyzeCodeForIssues = (code, language) => {
-    const issues = []
+  const parseGeminiOutput = (analysisLines) => {
+    const issues = [];
+    let currentIssue = null;
 
-    // Split code into lines for line-specific issues
-    const lines = code.split("\n")
+    analysisLines.forEach((line) => {
+      const issueKeywords = ["Error:", "Errors:", "Issue:", "Issues:", "Warning:", "Warnings:", "Potential error:", "Possible issue:", "Suggestion:", "Problem:", "Note:"];
+      let issueFoundInLine = false;
 
-    // Common checks for all languages
-    issues.push(...checkForEmptyBlocks(code, lines))
-    issues.push(...checkForTodoComments(code, lines))
+      for (const keyword of issueKeywords) {
+        const index = line.indexOf(keyword);
+        if (index !== -1) {
+          issueFoundInLine = true;
+          if (currentIssue) issues.push(currentIssue);
+          const messagePart = line.substring(index + keyword.length).trim();
+          const lineNumberMatch = messagePart.match(/\(Line\s*(\d+)\)/i);
+          const lineNumber = lineNumberMatch ? parseInt(lineNumberMatch[1], 10) : null;
+          const message = lineNumberMatch ? messagePart.substring(0, lineNumberMatch.index).trim() : messagePart.trim();
+          const type = keyword.toLowerCase().includes("error") ? "error" : keyword.toLowerCase().includes("warning") ? "warning" : "info";
+          currentIssue = { type, message, lineNumber, code: null };
+          break; // Move to the next line after finding a keyword
+        }
+      }
 
-    // Language-specific checks
-    switch (language) {
-      case "javascript":
-        issues.push(...checkJavaScriptIssues(code, lines))
-        break
-      case "python":
-        issues.push(...checkPythonIssues(code, lines))
-        break
-      case "cpp":
-        issues.push(...checkCppIssues(code, lines))
-        break
-      case "java":
-        issues.push(...checkJavaIssues(code, lines))
-        break
+      // If no new issue keyword is found, and we have a current issue, append to its message
+      if (!issueFoundInLine && currentIssue && line.trim() !== "") {
+        currentIssue.message += "\n" + line.trim();
+      } else if (!currentIssue && line.trim() !== "" && !/^(The|provided|Here's|Improvements):/i.test(line)) {
+        // If no current issue and the line isn't a general intro/outro, start a potential info issue
+        currentIssue = { type: "info", message: line.trim(), lineNumber: null, code: null };
+      }
+    });
+
+    if (currentIssue) {
+      issues.push(currentIssue);
     }
 
-    return issues
-  }
-
-  const checkForEmptyBlocks = (code, lines) => {
-    const issues = []
-    const emptyBlockRegex = /{\s*}/g
-    let match
-
-    while ((match = emptyBlockRegex.exec(code)) !== null) {
-      // Find the line number for this match
-      const upToMatch = code.substring(0, match.index)
-      const lineNumber = upToMatch.split("\n").length
-
-      issues.push({
-        type: "warning",
-        message: "Empty code block found",
-        lineNumber,
-        code: lines[lineNumber - 1],
-      })
-    }
-
-    return issues
-  }
-
-  const checkForTodoComments = (code, lines) => {
-    const issues = []
-    const todoRegex = /\/\/.*TODO|\/\*.*TODO|#.*TODO/gi
-
-    lines.forEach((line, index) => {
-      if (todoRegex.test(line)) {
-        issues.push({
-          type: "info",
-          message: "TODO comment found",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    return issues
-  }
-
-  const checkJavaScriptIssues = (code, lines) => {
-    const issues = []
-
-    // Check for missing semicolons
-    lines.forEach((line, index) => {
-      // Skip lines that end with brackets, comments, or already have semicolons
-      if (
-        !/[{}[\];]$/.test(line.trim()) &&
-        /[^,]\s*$/.test(line.trim()) &&
-        line.trim().length > 0 &&
-        !line.trim().startsWith("//") &&
-        !line.trim().startsWith("if") &&
-        !line.trim().startsWith("for") &&
-        !line.trim().startsWith("while") &&
-        !line.trim().startsWith("function")
-      ) {
-        issues.push({
-          type: "warning",
-          message: "Missing semicolon",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    // Check for potential infinite loops
-    const infiniteLoopRegex = /while\s*$$\s*true\s*$$|for\s*$$[^;]*;[^;]*;\s*$$/g
-    let match
-
-    while ((match = infiniteLoopRegex.exec(code)) !== null) {
-      const upToMatch = code.substring(0, match.index)
-      const lineNumber = upToMatch.split("\n").length
-
-      issues.push({
-        type: "error",
-        message: "Potential infinite loop",
-        lineNumber,
-        code: lines[lineNumber - 1],
-      })
-    }
-
-    // Check for console.log statements
-    lines.forEach((line, index) => {
-      if (/console\.log/.test(line)) {
-        issues.push({
-          type: "warning",
-          message: "Console.log statement found. Consider removing before production.",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    // Check for loose equality (==) instead of strict equality (===)
-    lines.forEach((line, index) => {
-      if (/[^=!]==[^=]/.test(line)) {
-        issues.push({
-          type: "warning",
-          message: "Using loose equality (==) instead of strict equality (===)",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    return issues
-  }
-
-  const checkPythonIssues = (code, lines) => {
-    const issues = []
-
-    // Check for indentation issues (simplified)
-    let previousIndentation = 0
-    lines.forEach((line, index) => {
-      if (line.trim() === "") return // Skip empty lines
-
-      const currentIndentation = line.search(/\S/)
-      if (
-        currentIndentation > 0 &&
-        currentIndentation !== previousIndentation &&
-        currentIndentation !== previousIndentation + 4
-      ) {
-        issues.push({
-          type: "error",
-          message: "Inconsistent indentation",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-
-      if (
-        line.trim().startsWith("def") ||
-        line.trim().startsWith("class") ||
-        line.trim().startsWith("if") ||
-        line.trim().startsWith("else") ||
-        line.trim().startsWith("elif") ||
-        line.trim().startsWith("for") ||
-        line.trim().startsWith("while")
-      ) {
-        previousIndentation = currentIndentation
-      }
-    })
-
-    // Check for potential infinite loops
-    lines.forEach((line, index) => {
-      if (/while\s+True:/.test(line) && !code.includes("break")) {
-        issues.push({
-          type: "error",
-          message: "Potential infinite loop - while True without break",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    // Check for print statements (should use logging in production)
-    lines.forEach((line, index) => {
-      if (/\bprint\s*\(/.test(line)) {
-        issues.push({
-          type: "warning",
-          message: "Print statement found. Consider using logging for production code.",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    // Check for missing or extra colon
-    lines.forEach((line, index) => {
-      if (/\b(if|elif|else|for|while|def|class)\b[^:]*$/.test(line.trim())) {
-        issues.push({
-          type: "error",
-          message: "Missing colon at the end of the statement",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    return issues
-  }
-
-  const checkCppIssues = (code, lines) => {
-    const issues = []
-
-    // Check for missing semicolons
-    lines.forEach((line, index) => {
-      // Skip lines that end with brackets, comments, or already have semicolons
-      if (
-        !/[{}[\];]$/.test(line.trim()) &&
-        line.trim().length > 0 &&
-        !line.trim().startsWith("//") &&
-        !line.trim().startsWith("#") &&
-        !line.trim().startsWith("if") &&
-        !line.trim().startsWith("for") &&
-        !line.trim().startsWith("while") &&
-        !line.trim().startsWith("else")
-      ) {
-        issues.push({
-          type: "warning",
-          message: "Missing semicolon",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    // Check for potential memory leaks (new without delete)
-    const newCount = (code.match(/\bnew\b/g) || []).length
-    const deleteCount = (code.match(/\bdelete\b/g) || []).length
-
-    if (newCount > deleteCount) {
-      issues.push({
-        type: "warning",
-        message: "Potential memory leak: more new operations than delete operations",
-        lineNumber: 1,
-        code: "Memory management issue in the overall code",
-      })
-    }
-
-    // Check for cout without endl or \n
-    lines.forEach((line, index) => {
-      if (line.includes("cout") && !line.includes("endl") && !line.includes("\\n")) {
-        issues.push({
-          type: "warning",
-          message: "cout without endl or \\n",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    return issues
-  }
-
-  const checkJavaIssues = (code, lines) => {
-    const issues = []
-
-    // Check for missing semicolons
-    lines.forEach((line, index) => {
-      // Skip lines that end with brackets, comments, or already have semicolons
-      if (
-        !/[{}[\];]$/.test(line.trim()) &&
-        line.trim().length > 0 &&
-        !line.trim().startsWith("//") &&
-        !line.trim().startsWith("if") &&
-        !line.trim().startsWith("for") &&
-        !line.trim().startsWith("while") &&
-        !line.trim().startsWith("public") &&
-        !line.trim().startsWith("private") &&
-        !line.trim().startsWith("protected") &&
-        !line.trim().startsWith("class")
-      ) {
-        issues.push({
-          type: "warning",
-          message: "Missing semicolon",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    // Check for System.out.println
-    lines.forEach((line, index) => {
-      if (/System\.out\.print/.test(line)) {
-        issues.push({
-          type: "warning",
-          message: "System.out.println found. Consider using a logger for production code.",
-          lineNumber: index + 1,
-          code: line,
-        })
-      }
-    })
-
-    // Check for potential equals/hashCode contract violation
-    const hasEquals = code.includes("public boolean equals(")
-    const hasHashCode = code.includes("public int hashCode(")
-
-    if (hasEquals && !hasHashCode) {
-      issues.push({
-        type: "warning",
-        message: "equals() is overridden, but hashCode() is not. This violates the equals/hashCode contract.",
-        lineNumber: 1,
-        code: "Class structure issue",
-      })
-    } else if (!hasEquals && hasHashCode) {
-      issues.push({
-        type: "warning",
-        message: "hashCode() is overridden, but equals() is not. This violates the equals/hashCode contract.",
-        lineNumber: 1,
-        code: "Class structure issue",
-      })
-    }
-
-    return issues
-  }
+    return issues;
+  };
 
   const highlightSyntax = (code, language) => {
     // Simple syntax highlighting for demonstration
@@ -396,7 +144,7 @@ void example() {
       <div className="debugger-container">
         <div className="code-input">
           <h3>Paste Your Code</h3>
-          <p className="help-text">Paste your code below to check for common errors and issues.</p>
+          <p className="help-text">Paste your code below to check for common errors and issues using AI.</p>
           <textarea
             id="debug-code"
             value={code}
@@ -413,7 +161,7 @@ void example() {
             </select>
           </div>
           <button className="btn primary" onClick={analyzeCode} disabled={loading}>
-            <i className="fas fa-search"></i> Analyze Code
+            <i className="fas fa-search"></i> Analyze Code with AI
           </button>
         </div>
 
@@ -423,14 +171,14 @@ void example() {
           {loading && (
             <div className="loading-indicator">
               <div className="spinner"></div>
-              <p>Analyzing code...</p>
+              <p>Analyzing code with AI...</p>
             </div>
           )}
 
           {!loading && !analyzed && (
             <div className="empty-state">
-              <i className="fas fa-bug"></i>
-              <p>Enter your code and click "Analyze Code" to see the debugging results.</p>
+              <i className="fas fa-brain"></i>
+              <p>Enter your code and click "Analyze Code with AI" to see the debugging results.</p>
             </div>
           )}
 
@@ -445,12 +193,12 @@ void example() {
                 {issues.length === 0 ? (
                   <div className="success-message">
                     <i className="fas fa-check-circle"></i>
-                    <p>No issues found in your code!</p>
+                    <p>Found no significant issues in your code!</p>
                   </div>
                 ) : (
                   <>
                     <h4>
-                      {issues.length} issue{issues.length === 1 ? "" : "s"} found
+                      {issues.length} issue{issues.length === 1 ? "" : "s"} identified
                     </h4>
                     <div className="issue-list">
                       {issues.map((issue, index) => (
@@ -460,13 +208,20 @@ void example() {
                           style={{ "--animation-order": index }}
                         >
                           <i
-                            className={`fas ${issue.type === "error" ? "fa-times-circle" : "fa-exclamation-triangle"}`}
+                            className={`fas ${issue.type === "error" ? "fa-times-circle" : issue.type === "warning" ? "fa-exclamation-triangle" : "fa-info-circle"}`}
                           ></i>
                           <div className="issue-item-content">
                             <div>{issue.message}</div>
-                            <div className="issue-item-location">
-                              Line {issue.lineNumber}: {issue.code}
-                            </div>
+                            {issue.lineNumber && (
+                              <div className="issue-item-location">
+                                Line {issue.lineNumber}: {issue.code ? issue.code.trim() : code.split("\n")[issue.lineNumber - 1]?.trim()}
+                              </div>
+                            )}
+                            {!issue.lineNumber && issue.code && (
+                              <div className="issue-item-location">
+                                Code: {issue.code.trim()}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -483,4 +238,3 @@ void example() {
 }
 
 export default DebugHelper
-
